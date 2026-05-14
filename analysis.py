@@ -1,12 +1,16 @@
 import pandas as pd
+from google.colab import drive
 import matplotlib.pyplot as plt
 import string
-from tqdm import tqdm 
+from tqdm import tqdm
 from collections import Counter
 import spacy
 import re
 import numpy as np
+drive.mount('/content/drive')
 nlp = spacy.load("el_core_news_sm")
+file_path = '/content/drive/MyDrive/mati.csv'
+
 def load_data(filename):
     """Load data from a CSV file into a pandas DataFrame."""
     return pd.read_csv(filename)
@@ -16,7 +20,7 @@ def save_to_csv(df, filename):
 
 #Reduces noise in the text data to enhance the quality of subsequent analysis.
 def preprocess_text(text):
-    # This function preprocesses a Pandas Series of text data by performing the 
+    # This function preprocesses a Pandas Series of text data by performing the
     # following operations:
     # 1. Converts text to lowercase.
     # 2. Removes mentions (e.g., @username).
@@ -30,13 +34,13 @@ def preprocess_text(text):
     # 10. Removes emoticons and other symbols using Unicode ranges.
     # 11. Removes words with less than 4 characters.
     # 12. Collapses multiple spaces into one and trims leading or trailing spaces.
-    
+
     # Input Parameters:
     # - text (pd.Series): Pandas Series containing the text to preprocess.
-    
+
     # Output Parameters:
     # - pd.Series: Cleaned text.
-    
+
     def remove_punctuation_from_words(line):
         # Splits the line into words and removes punctuation from each word
         words = line.split()
@@ -44,9 +48,9 @@ def preprocess_text(text):
         cleaned_words = [word.translate(str.maketrans("", "", string.punctuation)) for word in words]
         # Join the cleaned words back into a single string
         return " ".join(cleaned_words)
-    
+
     # Convert text to lowercase
-    text = text.str.lower()    
+    text = text.str.lower()
     # Remove mentions (@username)
     text = text.str.replace(r"@\w+", "", regex=True)  # Matches any word starting with '@'
     # Remove retweet indicators (e.g., RT)
@@ -73,8 +77,8 @@ def preprocess_text(text):
         r"\U00002700-\U000027BF"  # Dingbats
         r"\U0001F900-\U0001F9FF"  # Supplemental Symbols and Pictographs
         r"\U0001FA70-\U0001FAFF"  # Symbols and Pictographs Extended-A
-        r"]+", 
-        "", 
+        r"]+",
+        "",
         regex=True
     )  # Matches Unicode ranges for various emoji and symbols
     # Remove words with less than 4 characters
@@ -82,21 +86,21 @@ def preprocess_text(text):
     # Remove extra spaces caused by word removal
     text = text.str.replace(r'\s+', ' ', regex=True).str.strip()  # Collapses multiple spaces into one and trims
     return text
-# =============================================================================  
+# =============================================================================
 
-#It keeps only strong tokens for meaning in the text: removes stopwords, non-alphanumeric tokens, and short words (<4 characters). 
+#It keeps only strong tokens for meaning in the text: removes stopwords, non-alphanumeric tokens, and short words (<4 characters).
 def clean_tweets(texts,index):
-    # This function cleans tweets in bulk using spaCy's nlp.pipe() for efficient 
+    # This function cleans tweets in bulk using spaCy's nlp.pipe() for efficient
     # processing.
-    
+
     # Input Parameters:
     # - texts (list of str): List of text entries to clean.
-    
+
     # Output Parameters:
     # - pd.Series: A pandas Series containing the cleaned text.
-    
+
     cleaned_texts = []
-    for doc in tqdm(nlp.pipe(texts, batch_size=1000, disable=["parser", "ner", "tagger"]), 
+    for doc in tqdm(nlp.pipe(texts, batch_size=1000, disable=["parser", "ner", "tagger"]),
                     total=len(texts), desc="Cleaning tweets"):
         # Process tokens: retain punctuation, remove stopwords, non-alphanumeric tokens, and short words
         tokens = [
@@ -104,7 +108,7 @@ def clean_tweets(texts,index):
             if not token.is_stop and token.is_alpha and len(token.text) >= 4
         ]
         cleaned_texts.append(" ".join(tokens))
-    
+
     # Return the cleaned texts as a pandas Series
     return pd.Series(cleaned_texts, index=index) #prevents pandas index-alignment issues
 
@@ -145,20 +149,20 @@ def use_bag_of_words(df):
     return df_filtered
 
 def fill_missing_dates(daily_volume_df):
-    # This function identifies missing dates in the dataset, adds them with 
+    # This function identifies missing dates in the dataset, adds them with
     # zero volume, and reports the number of new dates added.
 
     # Input Parameters:
     # - daily_volume_df (DataFrame): A DataFrame containing:
-    #                                - 'date': A column of timestamps 
+    #                                - 'date': A column of timestamps
     #                                          representing dates.
-    #                                - 'volume': A column of volumes 
+    #                                - 'volume': A column of volumes
     #                                            corresponding to each date.
 
     # Output Parameters:
-    # - updated_df (DataFrame): The updated DataFrame with all missing dates 
+    # - updated_df (DataFrame): The updated DataFrame with all missing dates
     #                           filled with zero volume.
-    
+
     # Determine the range of dates
     earliest_date = daily_volume_df['dates'].min()
     latest_date = daily_volume_df['dates'].max()
@@ -189,19 +193,19 @@ def fill_missing_dates(daily_volume_df):
     return updated_df
 
 def plot_daily_volume(daily_volume_df, day_min, day_max):
-    # This function generates a plot of daily tweet volumes for a specified 
+    # This function generates a plot of daily tweet volumes for a specified
     # period, with validation.
-    
+
     # Input Parameters:
-    # - daily_volume_df (DataFrame): A DataFrame containing a 'date' column 
-    #                                (timestamps of dates)  and a 'volume' 
+    # - daily_volume_df (DataFrame): A DataFrame containing a 'date' column
+    #                                (timestamps of dates)  and a 'volume'
     #                                column (corresponding daily volume).
     # - day_min (int): Starting day (1-indexed).
     # - day_max (int): Ending day (1-indexed).
-    
-    # The function ensures the provided day range is valid and plots the daily 
+
+    # The function ensures the provided day range is valid and plots the daily
     # tweet volumes for the specified range.
-    
+
     # Validate day_min and day_max
     total_days = len(daily_volume_df)
     if day_min < 1 or day_max > total_days or day_min > day_max:
@@ -221,19 +225,25 @@ def plot_daily_volume(daily_volume_df, day_min, day_max):
     axes.set_title(f'Daily tweet volume {day_min} to {day_max} day', color='white')
     # Add grid
     axes.grid(color='yellow', linestyle='--', linewidth=0.5, alpha=0.7)
-    
+
     # Customize tick colors for dark background
     axes.tick_params(axis='x', colors='white')
     axes.tick_params(axis='y', colors='white')
-    
+
     # Show the plot
     plt.show()
 
-def add_rolling_stats(daily_volume_df, window_size = 30):
+def add_rolling_stats(daily_volume_df, window_size=30):
+    daily_volume_df = daily_volume_df.copy()
     daily_volume_df["dates"] = pd.to_datetime(daily_volume_df["dates"])
-    roll = daily_volume_df['volume'].rolling(window=window_size, min_periods=1)
-    daily_volume_df['rolling_mean'] = roll.mean()
-    daily_volume_df['rolling_std'] = roll.std().fillna(0.0)
+
+    shifted = daily_volume_df["volume"].shift(1)
+    daily_volume_df["rolling_mean"] = (
+        shifted.rolling(window=window_size, min_periods=1).mean().fillna(0)
+    )
+    daily_volume_df["rolling_std"] = (
+        shifted.rolling(window=window_size, min_periods=1).std().fillna(0)
+    )
     return daily_volume_df
 
 def detect_bursts(daily_volume_df, K=2):
@@ -254,7 +264,7 @@ def plot_bursts_indexed(daily_volume_df, day_min, day_max, window_size=30, K=2):
     """
     Plots daily volume (index on x-axis) + rolling mean + burst threshold
     and highlights detected burst days.
-    
+
     Requirements:
     daily_volume_df must contain: 'volume', 'rolling_mean', 'rolling_std'
     (or you compute them before calling), and it will use 'is_burst' and
@@ -320,50 +330,57 @@ def plot_bursts_indexed(daily_volume_df, day_min, day_max, window_size=30, K=2):
     plt.show()
 
 def plot_author_volume(tweets_df,day_min,day_max):
-    # This function computes the volume of tweets per author for a given range 
+    # This function computes the volume of tweets per author for a given range
     # of days and generates the corresponding histogram plot.
-    
+
     # Input Parameters:
     # - tweets_df (DataFrame): A DataFrame containing:
     #                          - 'author_id': ID of the author.
     #                          - 'dates': Dates of the tweets (datetime format).
     # - day_min (int): The starting day (1-indexed) from the earliest date.
     # - day_max (int): The ending day (inclusive, 1-indexed).
-    
+
     # Output Parameters:
     # - result_df (DataFrame): A DataFrame with columns:
     #                          - 'author_id': The unique author IDs.
-    #                          - 'volume': The number of tweets per author in 
+    #                          - 'volume': The number of tweets per author in
     #                             the given range.
-    
+
     # Get the earliest and latest dates
     earliest_date = tweets_df["dates"].min()
     latest_date = tweets_df["dates"].max()
-    
+
     # Total number of days in the dataset
     total_days = (latest_date - earliest_date).days + 1
-    
+
     # Validate the specified range
     if day_min < 1 or day_max > total_days or day_min > day_max:
         raise ValueError(
             f"Invalid day range: day_min={day_min}, day_max={day_max}. "
             f"Valid range is from 1 to {total_days} days."
         )
-    
+
     # Calculate the date range corresponding to day_min and day_max
     start_date = earliest_date + pd.Timedelta(days=day_min - 1)
     end_date = earliest_date + pd.Timedelta(days=day_max - 1)
-    
+
     # Filter the dataset for the specified range of days
-    filtered_data = tweets_df[(tweets_df["dates"] >= start_date) & 
-                            (tweets_df["dates"] <= end_date)]
-    
+    # Αν η στήλη είναι UTC
+    start_date = pd.Timestamp(start_date)
+    end_date = pd.Timestamp(end_date)
+
+    filtered_data = tweets_df[(tweets_df["timestamps"] >= start_date) &
+                          (tweets_df["timestamps"] <= end_date)]
+
+
+
+
     # Group by author_id and count the tweets
     author_volume_df = filtered_data.groupby("author_id").size().reset_index(name="volume")
-    
+
     # Sort by tweet volume in descending order
     author_volume_df = author_volume_df.sort_values(by="volume", ascending=False).reset_index(drop=True)
-    
+
     # Isolate the volume of tweets per author
     author_volume = author_volume_df["volume"]
 
@@ -392,7 +409,7 @@ def plot_author_volume(tweets_df,day_min,day_max):
     axes.tick_params(axis='y', colors='white')
     # Show the plot
     plt.show()
-    
+
     return author_volume_df
 def calculate_author_timespans(filtered_df):
     author_timespans = filtered_df.groupby('author_id')['timestamps'].agg(
@@ -402,29 +419,29 @@ def calculate_author_timespans(filtered_df):
 
 def calculate_author_statistics(filtered_df):
     df = filtered_df[['author_id', 'timestamps']].copy()
-    
+
     #Be sure timestamps are in datetime format and sort by author and timestamp
     df["timestamps"] = pd.to_datetime(df["timestamps"], errors="coerce")
     df = df.dropna(subset=["timestamps"]).sort_values(["author_id", "timestamps"])
-    
+
     #Find first tweet, last tweet, total tweets per author
     author_stats = (
         df.groupby('author_id')['timestamps']
         .agg(first_tweet='min', last_tweet='max', total_tweets='count')
         .reset_index()
     )
-    #Time span between first and last tweet in hours 
+    #Time span between first and last tweet in hours
     span = author_stats['last_tweet'] - author_stats['first_tweet']
     author_stats['timespan_hours'] = span.dt.total_seconds() / 3600
-    
+
     #Since timespans are sorted, we can calculate average interval between tweets
     df['delta_hours'] = df.groupby('author_id')['timestamps'].diff().dt.total_seconds() / 3600
-    
+
     avg_interval = df.groupby('author_id')['delta_hours'].mean()
     #For every author, map the average interval back to author_stats
     author_stats['avg_interval_hours'] = author_stats['author_id'].map(avg_interval)
-    
-    return author_stats    
+
+    return author_stats
 
 def robust_minmax(s):
     lo = s.quantile(0.05)
@@ -453,7 +470,7 @@ def rank_authors(author_stats, w_total=0.4, w_freq=0.3, w_impact=0.3):
         w_total * df['norm_total_tweets'] +
         w_freq * df['norm_frequency'] +
         w_impact * df['norm_impact']
-    )  
+    )
     df = df.sort_values(by='activity_score', ascending=False).reset_index(drop=True)
     return df
 
@@ -475,14 +492,14 @@ def plot_top_authors(ranked_authors, top_n=20):
 
 def plot_hour_of_day_activity(filtered_df):
     df = filtered_df.copy()
-    
+
     df['hour'] = df['timestamps'].dt.hour
     df['date'] = df['timestamps'].dt.date
 
     hour_volume = df.groupby(['date', 'hour']).size().reset_index(name='volume')
     hour_avg = hour_volume.groupby('hour')['volume'].mean().reset_index(name='avg_volume')
     avg_line = hour_avg['avg_volume'].mean()
-    
+
     plt.figure(figsize=(12, 6))
     plt.style.use("dark_background")
     plt.bar(hour_avg['hour'], hour_avg['avg_volume'], color='red', alpha=0.7)
@@ -515,7 +532,7 @@ def compute_engagement_metrics(filtered_df):
         engagement['total_likes'] +
         engagement['total_replies'] +
         engagement['total_retweets'] ) / engagement['total_tweets']
-    
+
     engagement['total_engagement'] = (
         engagement['total_likes'] +
         engagement['total_replies'] +
@@ -538,24 +555,419 @@ def rank_authors_by_engagement(engagement_df, top_n=20, sorting_metric='avg_enga
     plt.grid(color='yellow', linestyle='--', linewidth=0.5, alpha=0.7, axis='y')
     plt.tight_layout()
     plt.show()
+	##ANASTASIA
+def analyze_time_gaps(filtered_df):
+    df = filtered_df[['author_id', 'timestamps']].copy()
+    df = df.sort_values(['author_id', 'timestamps'])
 
+    df['gap_seconds'] = (
+        df.groupby('author_id')['timestamps']
+        .diff()
+        .dt.total_seconds()
+    )
+
+    stats = (
+        df.groupby('author_id')['gap_seconds']
+        .agg(
+            avg_gap_seconds='mean',
+            std_gap_seconds='std',
+            short_gaps=lambda x: (x < 60).sum(),
+            long_gaps=lambda x: (x > 86400).sum()
+        )
+        .reset_index()
+    )
+
+    return stats
+def identify_irregular_authors(gap_stats,
+                               short_gap_threshold=10,
+                               long_gap_threshold=10):
+    """
+    Identifies authors with irregular tweeting patterns.
+    """
+    irregular = gap_stats[
+        (gap_stats['short_gaps'] >= short_gap_threshold) |
+        (gap_stats['long_gaps'] >= long_gap_threshold)
+    ].sort_values(
+        by=['short_gaps', 'long_gaps'],
+        ascending=False
+    )
+    return irregular##Q6
+
+
+def compute_weekly_totals(filtered_df):
+    df = filtered_df.copy()
+    iso = df['timestamps'].dt.isocalendar()
+
+    df['iso_year'] = iso.year
+    df['iso_week'] = iso.week
+
+    weekly_totals = (
+        df.groupby(['iso_year', 'iso_week'])
+        .size()
+        .reset_index(name='total_volume')
+    )
+
+    weekly_totals['year_week'] = (
+        weekly_totals['iso_year'].astype(str) + '-W' + weekly_totals['iso_week'].astype(str)
+    )
+
+    return weekly_totals
+def compute_weekly_totals(filtered_df):
+    df = filtered_df.copy()
+    df['week'] = df['timestamps'].dt.isocalendar().week
+    weekly_totals = df.groupby('week').size().reset_index(name='total_volume')
+    return weekly_totals
+
+# Q8. Author Retweet Dependency
+# =========================
+
+def compute_retweet_dependency(filtered_df):
+    df = filtered_df.copy()
+
+    # Use raw_text, not cleaned/preprocessed text
+    df['is_retweet'] = df['raw_text'].astype(str).str.match(r'(?i)^rt\s+')
+
+    stats = (
+        df.groupby('author_id')
+        .agg(
+            total_tweets=('tweet_id', 'count'),
+            retweets=('is_retweet', 'sum')
+        )
+        .reset_index()
+    )
+
+    stats['retweets'] = stats['retweets'].astype(int)
+    stats['original_tweets'] = stats['total_tweets'] - stats['retweets']
+    stats['retweet_ratio'] = stats['retweets'] / stats['total_tweets']
+
+    stats['retweet_to_original_ratio'] = np.where(
+        stats['original_tweets'] > 0,
+        stats['retweets'] / stats['original_tweets'],
+        np.nan
+    )
+
+    return stats
+
+
+def plot_retweet_dependency_distribution(retweet_stats):
+    df = retweet_stats.copy()
+
+    plt.figure(figsize=(12, 6))
+    plt.style.use("dark_background")
+    plt.hist(df['retweet_ratio'].dropna(), bins=30, alpha=0.8)
+    plt.xlabel('Retweet Ratio', color='white')
+    plt.ylabel('Number of Authors', color='white')
+    plt.title('Distribution of Author Retweet Dependency', color='white')
+    plt.grid(color='yellow', linestyle='--', linewidth=0.5, alpha=0.7)
+    plt.xticks(color='white')
+    plt.yticks(color='white')
+    plt.tight_layout()
+    plt.show()
+
+
+def rank_authors_by_retweet_dependency(retweet_stats, top_n=20, metric='retweet_ratio'):
+    df = retweet_stats.copy()
+    df = df.sort_values(metric, ascending=False).reset_index(drop=True)
+    top = df.head(top_n)
+
+    plt.figure(figsize=(12, 6))
+    plt.style.use("dark_background")
+    plt.bar(top['author_id'].astype(str), top[metric], alpha=0.8)
+    plt.xlabel('Author ID', color='white')
+    plt.ylabel(metric, color='white')
+    plt.title(f'Top {top_n} Authors by {metric}', color='white')
+    plt.xticks(rotation=60, ha='right', color='white')
+    plt.yticks(color='white')
+    plt.grid(color='yellow', linestyle='--', linewidth=0.5, alpha=0.7, axis='y')
+    plt.tight_layout()
+    plt.show()
+
+    return top
+##Q9
+# =========================
+# Q9. Burst-Origin Analysis
+# =========================
+
+def burst_origin_analysis(filtered_df, daily_volume_df, hours_before=6):
+    """
+    For each burst day:
+    1. Examine the preceding time window (e.g. 6 hours before burst onset)
+    2. Examine tweets during the burst day itself
+    3. Compute:
+       - pct_preburst_window
+       - pct_burst_day
+       - lag_hours
+    """
+
+    bursts_df = daily_volume_df[daily_volume_df['is_burst']].copy()
+    results = []
+
+    for _, row in bursts_df.iterrows():
+        burst_date = pd.Timestamp(row['dates'])
+        burst_start = burst_date
+        burst_end = burst_start + pd.Timedelta(days=1)
+        window_start = burst_start - pd.Timedelta(hours=hours_before)
+
+        preburst_tweets = filtered_df[
+            (filtered_df['timestamps'] >= window_start) &
+            (filtered_df['timestamps'] < burst_start)
+        ].copy()
+
+        burst_day_tweets = filtered_df[
+            (filtered_df['timestamps'] >= burst_start) &
+            (filtered_df['timestamps'] < burst_end)
+        ].copy()
+
+        total_preburst = len(preburst_tweets)
+        total_burst_day = len(burst_day_tweets)
+
+        authors = sorted(
+            set(preburst_tweets['author_id'].unique()).union(
+                set(burst_day_tweets['author_id'].unique())
+            )
+        )
+
+        for author in authors:
+            author_pre = preburst_tweets[preburst_tweets['author_id'] == author]
+            author_burst = burst_day_tweets[burst_day_tweets['author_id'] == author]
+
+            pre_count = len(author_pre)
+            burst_count = len(author_burst)
+
+            first_pre_tweet = author_pre['timestamps'].min() if pre_count > 0 else pd.NaT
+            lag_hours = (
+                (burst_start - first_pre_tweet).total_seconds() / 3600
+                if pd.notna(first_pre_tweet) else np.nan
+            )
+
+            results.append({
+                'burst_date': burst_date,
+                'author_id': author,
+                'tweets_preburst_window': pre_count,
+                'tweets_burst_day': burst_count,
+                'pct_preburst_window': pre_count / total_preburst if total_preburst > 0 else 0.0,
+                'pct_burst_day': burst_count / total_burst_day if total_burst_day > 0 else 0.0,
+                'lag_hours': lag_hours
+            })
+
+    return pd.DataFrame(results)
+
+
+def rank_burst_drivers(burst_authors, top_n=20, metric='pct_burst_day'):
+    df = burst_authors.copy()
+    df = df.sort_values(metric, ascending=False).reset_index(drop=True)
+    top = df.head(top_n)
+
+    print(f"Top {top_n} burst drivers by {metric}:")
+    print(top[['burst_date', 'author_id', 'tweets_preburst_window', 'tweets_burst_day', metric, 'lag_hours']])
+
+    return top
+
+
+def plot_burst_driver_contributions(burst_authors, top_n=15, metric='pct_burst_day'):
+    df = (
+        burst_authors.groupby('author_id')[metric]
+        .mean()
+        .reset_index()
+        .sort_values(metric, ascending=False)
+        .head(top_n)
+    )
+
+    plt.figure(figsize=(12, 6))
+    plt.style.use("dark_background")
+    plt.bar(df['author_id'].astype(str), df[metric], alpha=0.8)
+    plt.xlabel('Author ID', color='white')
+    plt.ylabel(f'Average {metric}', color='white')
+    plt.title(f'Top {top_n} Authors by Average Burst Contribution', color='white')
+    plt.xticks(rotation=60, ha='right', color='white')
+    plt.yticks(color='white')
+    plt.grid(color='yellow', linestyle='--', linewidth=0.5, alpha=0.7, axis='y')
+    plt.tight_layout()
+    plt.show()
+    # =========================
+# Q10. Identification of Potentially Influential / Manipulative Authors
+# =========================
+
+def identify_influential_authors(
+    ranked_authors,
+    engagement_df,
+    retweet_stats,
+    burst_authors,
+    gap_stats
+):
+    burst_summary = (
+        burst_authors.groupby('author_id')
+        .agg(
+            avg_preburst_contribution=('pct_preburst_window', 'mean'),
+            avg_burst_contribution=('pct_burst_day', 'mean'),
+            bursts_participated=('burst_date', 'nunique'),
+            avg_lag_hours=('lag_hours', 'mean'),
+            median_lag_hours=('lag_hours', 'median')
+        )
+        .reset_index()
+    )
+
+    df = ranked_authors.merge(engagement_df, on='author_id', how='left')
+    df = df.merge(retweet_stats, on='author_id', how='left')
+    df = df.merge(gap_stats, on='author_id', how='left')
+    df = df.merge(burst_summary, on='author_id', how='left')
+
+    df['high_retweet_dependency_flag'] = df['retweet_ratio'] > 0.8
+    df['high_short_gap_flag'] = df['short_gaps'] >= 5
+    df['early_burst_flag'] = df['median_lag_hours'] <= 2
+    df['repeat_burst_presence_flag'] = df['bursts_participated'] >= 2
+
+    df['influence_score'] = (
+        0.25 * df['activity_score'].fillna(0) +
+        0.20 * robust_minmax(df['avg_engagement_tweet'].fillna(0)) +
+        0.25 * robust_minmax(df['avg_burst_contribution'].fillna(0)) +
+        0.15 * robust_minmax(df['bursts_participated'].fillna(0)) +
+        0.15 * (
+            1 - robust_minmax(
+                df['median_lag_hours'].fillna(
+                    df['median_lag_hours'].max() if df['median_lag_hours'].notna().any() else 0
+                )
+            )
+        )
+    )
+
+    df['coordination_risk_score'] = (
+        0.35 * robust_minmax(df['retweet_ratio'].fillna(0)) +
+        0.25 * robust_minmax(df['short_gaps'].fillna(0)) +
+        0.20 * robust_minmax(df['bursts_participated'].fillna(0)) +
+        0.20 * (
+            1 - robust_minmax(
+                df['median_lag_hours'].fillna(
+                    df['median_lag_hours'].max() if df['median_lag_hours'].notna().any() else 0
+                )
+            )
+        )
+    )
+
+    df = df.sort_values(
+        ['influence_score', 'coordination_risk_score'],
+        ascending=False
+    ).reset_index(drop=True)
+
+    return df
+
+
+def plot_influential_authors(influential_df, top_n=15, metric='influence_score'):
+    top = influential_df.head(top_n)
+
+    plt.figure(figsize=(12, 6))
+    plt.style.use("dark_background")
+    plt.bar(top['author_id'].astype(str), top[metric], alpha=0.8)
+    plt.xlabel('Author ID', color='white')
+    plt.ylabel(metric, color='white')
+    plt.title(f'Top {top_n} Authors by {metric}', color='white')
+    plt.xticks(rotation=60, ha='right', color='white')
+    plt.yticks(color='white')
+    plt.grid(color='yellow', linestyle='--', linewidth=0.5, alpha=0.7, axis='y')
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_coordination_risk(influential_df, top_n=15):
+    top = influential_df.sort_values('coordination_risk_score', ascending=False).head(top_n)
+
+    plt.figure(figsize=(12, 6))
+    plt.style.use("dark_background")
+    plt.bar(top['author_id'].astype(str), top['coordination_risk_score'], alpha=0.8)
+    plt.xlabel('Author ID', color='white')
+    plt.ylabel('coordination_risk_score', color='white')
+    plt.title(f'Top {top_n} Authors by Coordination Risk Score', color='white')
+    plt.xticks(rotation=60, ha='right', color='white')
+    plt.yticks(color='white')
+    plt.grid(color='yellow', linestyle='--', linewidth=0.5, alpha=0.7, axis='y')
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_author_burst_timeline(filtered_df, burst_authors, author_id, hours_before=6, hours_after=24):
+    df = filtered_df[filtered_df['author_id'] == author_id].copy()
+    burst_dates = burst_authors[burst_authors['author_id'] == author_id]['burst_date'].dropna().unique()
+
+    if len(burst_dates) == 0:
+        print(f"No burst-related activity found for author {author_id}")
+        return
+
+    plt.figure(figsize=(12, 6))
+    plt.style.use("dark_background")
+
+    for burst_date in burst_dates[:5]:
+        burst_start = pd.Timestamp(burst_date)
+        start = burst_start - pd.Timedelta(hours=hours_before)
+        end = burst_start + pd.Timedelta(hours=hours_after)
+
+        author_window = df[(df['timestamps'] >= start) & (df['timestamps'] < end)].copy()
+        if author_window.empty:
+            continue
+
+        relative_hours = (author_window['timestamps'] - burst_start).dt.total_seconds() / 3600
+        plt.scatter(
+            relative_hours,
+            np.ones(len(relative_hours)) * burst_start.day,
+            alpha=0.7,
+            label=str(burst_date.date())
+        )
+
+    plt.axvline(0, linestyle='--')
+    plt.xlabel('Hours relative to burst onset', color='white')
+    plt.ylabel('Burst day marker', color='white')
+    plt.title(f'Activity Timeline for Author {author_id} Around Bursts', color='white')
+    plt.xticks(color='white')
+    plt.yticks(color='white')
+    plt.grid(color='yellow', linestyle='--', linewidth=0.5, alpha=0.5)
+    plt.tight_layout()
+    plt.show()
+
+def plot_weekly_heatmap(weekly_df):
+      pivot = weekly_df.pivot(index='week', columns='weekday', values='volume').fillna(0)
+      plt.figure(figsize=(12, 8))
+      plt.style.use("dark_background")
+      plt.imshow(pivot, aspect='auto', origin='lower', interpolation='nearest', cmap='viridis')
+      plt.colorbar(label='Tweet Volume')
+      plt.xlabel('Day of Week')
+      plt.ylabel('Week of Year')
+      plt.xticks(ticks=np.arange(7), labels=['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'])
+      plt.yticks(ticks=np.arange(len(pivot.index)), labels=pivot.index)
+      plt.title('Weekly Tweet Activity Heatmap')
+      plt.tight_layout()
+      plt.show()
+def compute_weekly_activity(filtered_df):
+    df = filtered_df.copy()
+
+    df['week'] = df['timestamps'].dt.isocalendar().week
+    df['weekday'] = df['timestamps'].dt.dayofweek  # Monday=0
+
+    weekly_df = (
+        df.groupby(['week', 'weekday'])
+        .size()
+        .reset_index(name='volume')
+    )
+
+    return weekly_df
 
 def main():
-    filename = 'mati.csv'
+    filename = '/content/drive/MyDrive/mati.csv'
     tweets_df = load_data(filename)
     #Define columns
     tweets_df.columns = ['author_id', 'created_at', 'geo', 'tweet_id', 'lang', 'like_count', 'quote_count', 'reply_count', 'retweet_count', 'source', 'text']
     #Convert created_at to date format
-    tweets_df['timestamps'] = pd.to_datetime(tweets_df['created_at'])
+    tweets_df['timestamps'] = pd.to_datetime(tweets_df['created_at'], utc=True).dt.tz_localize(None)
     tweets_df['dates'] = tweets_df['timestamps'].dt.date
-
     #Q1: Preprocess and clean tweets, then filter using bag-of-words model
     tweets_df = tweets_df.sort_values(by='timestamps', ascending=True)
-    tweets_df["text"] = preprocess_text(tweets_df["text"])
+
+    # κρατάμε το αρχικό text για Q8
+    tweets_df["raw_text"] = tweets_df["text"].astype(str)
+    # preprocess μόνο για filtering / text analysis
+    tweets_df["text"] = preprocess_text(tweets_df["raw_text"])
     tweets_df["cleaned_text"] = clean_tweets(tweets_df["text"].tolist(), tweets_df.index)
     filtered_df = use_bag_of_words(tweets_df)
     remaining_df = tweets_df.drop(filtered_df.index) # Get tweets that were not selected for further analysis
-    
+
     print(f"Original dataset tweets count: {len(tweets_df)}")
     print(f"Filtered dataset tweets count: {len(filtered_df)}")
     print(f"Irrelevant dataset tweets count: {len(remaining_df)}")
@@ -634,15 +1046,77 @@ def main():
     ranked_authors = rank_authors(engineered_stats)
     print(ranked_authors.head(10))
     plot_top_authors(ranked_authors, top_n=20)
-    
+
     #Q4: Time-of-day activity analysis
     plot_hour_of_day_activity(filtered_df)
-    
+
     #Q5: Engagement metrics and ranking
     engagement_df = compute_engagement_metrics(filtered_df)
     print(engagement_df.head(10))
     rank_authors_by_engagement(engagement_df, top_n=20, sorting_metric='avg_engagement_tweet')
     rank_authors_by_engagement(engagement_df, top_n=20, sorting_metric='total_engagement')
+ #  Q6: Time-gap analysis
+    gap_stats = analyze_time_gaps(filtered_df)
+    irregular_authors = identify_irregular_authors(gap_stats)
+
+    print("Irregular authors (top 10):")
+    print(irregular_authors.head(10))
+#Q7
+    weekly_df = compute_weekly_activity(filtered_df)
+    weekly_totals = compute_weekly_totals(filtered_df)
+
+    print("Weekly total activity:")
+    print(weekly_totals.head())
+
+    plot_weekly_heatmap(weekly_df)
+
+
+# Q8
+    retweet_stats = compute_retweet_dependency(filtered_df)
+    print("Top authors by retweet ratio:")
+    print(retweet_stats.sort_values('retweet_ratio', ascending=False).head(10))
+    print("Top authors by retweet-to-original ratio:")
+    print(retweet_stats.sort_values('retweet_to_original_ratio', ascending=False).head(10))
+    plot_retweet_dependency_distribution(retweet_stats)
+    rank_authors_by_retweet_dependency(retweet_stats, top_n=20, metric='retweet_ratio')
+
+  # Q9
+    burst_authors = burst_origin_analysis(filtered_df, daily_volume_df, hours_before=6)
+    print("Top burst drivers:")
+    print(
+      burst_authors.sort_values('pct_burst_day', ascending=False)
+      [['burst_date', 'author_id', 'pct_preburst_window', 'pct_burst_day', 'lag_hours']]
+      .head(10)
+  )
+    rank_burst_drivers(burst_authors, top_n=20, metric='pct_burst_day')
+    plot_burst_driver_contributions(burst_authors, top_n=15, metric='pct_burst_day')
+
+  # Q10
+    influential = identify_influential_authors(
+      ranked_authors,
+      engagement_df,
+      retweet_stats,
+      burst_authors,
+      gap_stats
+  )
+
+    print("Top influential authors:")
+    print(
+      influential[
+          ['author_id', 'influence_score', 'coordination_risk_score',
+          'avg_burst_contribution', 'bursts_participated',
+          'median_lag_hours', 'retweet_ratio', 'short_gaps']
+      ].head(10)
+  )
+
+    plot_influential_authors(influential, top_n=15, metric='influence_score')
+    plot_coordination_risk(influential, top_n=15)
+
+    if not influential.empty:
+      top_author = influential.iloc[0]['author_id']
+      plot_author_burst_timeline(filtered_df, burst_authors, top_author)
+
+
 
 if __name__ == "__main__":
     main()
